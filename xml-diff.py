@@ -43,128 +43,67 @@ def _value_to_element_string(val):
 
 
 def build_visual_model(xml_before, xml_after):
-    """
-    Robust builder that returns two lists: vis_left, vis_right suitable for HtmlDiff.
-    This version is defensive: it won't crash if xmldiff returns strings instead of elements.
-    """
 
-    # 1) Compute structural diff
-    try:
-        diff = main.diff_texts(
-            xml_before,
-            xml_after,
-            formatter=formatting.DiffFormatter()
-        )
-    except Exception as e:
-        print("ERROR: xmldiff.diff_texts failed:", e)
-        # fallback: do a simple line-based alignment
-        left = pretty_lines(xml_before)
-        right = pretty_lines(xml_after)
-        # pad to same length and return
-        maxlen = max(len(left), len(right))
-        vis_left = [left[i] if i < len(left) else "" for i in range(maxlen)]
-        vis_right = [right[i] if i < len(right) else "" for i in range(maxlen)]
-        return vis_left, vis_right
+    # Structured XML diff
+    diff = main.diff_texts(
+        xml_before,
+        xml_after,
+        formatter=formatting.XmlDiffFormatter()
+    )
 
-    # 2) Prepare tree roots for xpath lookups
-    try:
-        root_before = etree.fromstring(xml_before)
-    except Exception:
-        root_before = None
-    try:
-        root_after = etree.fromstring(xml_after)
-    except Exception:
-        root_after = None
+    # Parse original trees
+    root_before = etree.fromstring(xml_before)
+    root_after = etree.fromstring(xml_after)
 
-    # 3) Baseline pretty-printed lines
+    # Baseline for left/right
     left = pretty_lines(xml_before)
     right = pretty_lines(xml_after)
-    vis_left = []
-    vis_right = []
 
-    # Start with aligned baseline (keeps difflib happy)
-    maxlen = max(len(left), len(right))
-    for i in range(maxlen):
-        vis_left.append(left[i] if i < len(left) else "")
-        vis_right.append(right[i] if i < len(right) else "")
+    vis_left = left[:]   # copy baseline
+    vis_right = right[:] # copy baseline
 
-    # 4) Process changes from xmldiff in a defensive way
-    # diff is expected to be an iterable of change dicts, but be defensive
-    change_count = 0
+    # Process structured changes
     for change in diff:
-        change_count += 1
-        try:
-            ctype = change.get("type") if isinstance(change, dict) else None
-        except Exception:
-            ctype = None
+        ctype = change["type"]
 
-        # handle delete
+        # DELETE: subtree removed
         if ctype == "delete":
-            raw = change.get("value", None) if isinstance(change, dict) else None
-            subtree_xml = _value_to_element_string(raw) or str(raw) or ""
-            for ln in (pretty_lines(subtree_xml) if subtree_xml else [""]):
-                vis_left.append(ln)
-                vis_right.append("")
+            node = change["node"]
+            old = root_before.xpath(node)
+            if old:
+                old_xml = etree.tostring(old[0], pretty_print=True, encoding="unicode")
+                for ln in pretty_lines(old_xml):
+                    vis_left.append(ln)
+                    vis_right.append("")
 
-        # handle insert
+        # INSERT: subtree added
         elif ctype == "insert":
-            raw = change.get("value", None) if isinstance(change, dict) else None
-            subtree_xml = _value_to_element_string(raw) or str(raw) or ""
-            for ln in (pretty_lines(subtree_xml) if subtree_xml else [""]):
-                vis_left.append("")
-                vis_right.append(ln)
+            children = change.get("children", [])
+            for child in children:
+                xml_str = etree.tostring(child, pretty_print=True, encoding="unicode")
+                for ln in pretty_lines(xml_str):
+                    vis_left.append("")
+                    vis_right.append(ln)
 
-        # handle update (value change)
+        # UPDATE: value changed
         elif ctype == "update":
-            node_path = change.get("node") if isinstance(change, dict) else None
-            # attempt to pull full element string from both trees by xpath
-            old_xml = None
-            new_xml = None
-            if node_path and root_before is not None:
-                try:
-                    found = root_before.xpath(node_path)
-                    if found:
-                        old_xml = etree.tostring(found[0], pretty_print=True, encoding="unicode")
-                except Exception:
-                    old_xml = None
-            if node_path and root_after is not None:
-                try:
-                    found = root_after.xpath(node_path)
-                    if found:
-                        new_xml = etree.tostring(found[0], pretty_print=True, encoding="unicode")
-                except Exception:
-                    new_xml = None
+            old_val = change.get("old", "")
+            new_val = change.get("new", "")
+            node = change["node"]
 
-            # fallback: if xmldiff provided the value directly
-            if old_xml is None:
-                # try using change['old'] or previous value fields
-                old_candidate = change.get("old", None) if isinstance(change, dict) else None
-                old_xml = _value_to_element_string(old_candidate) or old_xml
+            # reconstruct the full element
+            old_node = root_before.xpath(node)
+            new_node = root_after.xpath(node)
 
-            if new_xml is None:
-                new_candidate = change.get("value", None) if isinstance(change, dict) else None
-                new_xml = _value_to_element_string(new_candidate) or new_xml
+            old_xml = etree.tostring(old_node[0], pretty_print=True, encoding="unicode") if old_node else old_val
+            new_xml = etree.tostring(new_node[0], pretty_print=True, encoding="unicode") if new_node else new_val
 
-            # now convert to lines and append aligned
-            old_lines = pretty_lines(old_xml) if old_xml else [""]
-            new_lines = pretty_lines(new_xml) if new_xml else [""]
+            old_lines = pretty_lines(old_xml)
+            new_lines = pretty_lines(new_xml)
+
             for i in range(max(len(old_lines), len(new_lines))):
                 vis_left.append(old_lines[i] if i < len(old_lines) else "")
                 vis_right.append(new_lines[i] if i < len(new_lines) else "")
-
-        else:
-            # unknown change type -> be conservative and log
-            # try to stringify the change
-            try:
-                sval = str(change)
-            except Exception:
-                sval = "<unprintable change>"
-            vis_left.append(f"<!-- UNHANDLED CHANGE: {sval} -->")
-            vis_right.append("")
-
-    # final debug info
-    print(f"build_visual_model: baseline left={len(left)} right={len(right)},"
-          f" changes_processed={change_count}, vis_left={len(vis_left)}, vis_right={len(vis_right)}")
 
     return vis_left, vis_right
 
