@@ -1,0 +1,8 @@
+- name: Compute XML structural diff
+  set_fact:
+    xml_diff: "{{ before_config | xml_structured_diff(after_config) }}"
+
+- name: Generate HTML diff report
+  template:
+    src: diff_report.j2
+    dest: "reports/{{ inventory_hostname }}.html"
