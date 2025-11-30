@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Side-by-Side Config Diff - {{ inventory_hostname }}</title>
+
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { margin-bottom: 30px; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+        th { background: #f0f0f0; padding: 10px; font-size: 16px; }
+        td { vertical-align: top; padding: 10px; white-space: pre-wrap; }
+
+        .before { background-color: #ffecec; }  /* light red */
+        .after  { background-color: #eaffea; }  /* light green */
+        .added  { background-color: #e6ffea; }
+        .deleted { background-color: #ffecec; }
+        .changed { background-color: #fff9e6; } /* light yellow */
+
+        details { margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        summary { font-weight: bold; cursor: pointer; padding: 10px; background: #f7f7f7; }
+        .path { font-family: monospace; color: #555; }
+    </style>
+</head>
+
+<body>
+
+<h1>Side-by-Side Structural Diff — {{ inventory_hostname }}</h1>
+
+<!-- ============================ -->
+<!-- Changed Values (Side-by-side) -->
+<!-- ============================ -->
+<h2>Changed Elements</h2>
+{% if xml_diff.changed %}
+    {% for item in xml_diff.changed %}
+    <details open>
+        <summary>
+            <span class="path">▶ {{ item.path }}</span>
+        </summary>
+
+        <table>
+            <tr>
+                <th>Before</th>
+                <th>After</th>
+            </tr>
+            <tr>
+                <td class="before changed">{{ item.old }}</td>
+                <td class="after changed">{{ item.new }}</td>
+            </tr>
+        </table>
+    </details>
+    {% endfor %}
+{% else %}
+    <p>No changed elements.</p>
+{% endif %}
+
+
+<!-- ============================ -->
+<!-- Added Elements (Side-by-side-like) -->
+<!-- ============================ -->
+<h2>Added Elements</h2>
+{% if xml_diff.added %}
+    {% for item in xml_diff.added %}
+    <details>
+        <summary class="path">▶ {{ item }}</summary>
+        <table>
+            <tr>
+                <th>Before</th>
+                <th>After</th>
+            </tr>
+            <tr>
+                <td class="before deleted">—</td>
+                <td class="after added">{{ item }}</td>
+            </tr>
+        </table>
+    </details>
+    {% endfor %}
+{% else %}
+    <p>No added elements.</p>
+{% endif %}
+
+
+<!-- ============================ -->
+<!-- Deleted Elements -->
+<!-- ============================ -->
+<h2>Deleted Elements</h2>
+{% if xml_diff.deleted %}
+    {% for item in xml_diff.deleted %}
+    <details>
+        <summary class="path">▶ {{ item }}</summary>
+        <table>
+            <tr>
+                <th>Before</th>
+                <th>After</th>
+            </tr>
+            <tr>
+                <td class="before deleted">{{ item }}</td>
+                <td class="after deleted">—</td>
+            </tr>
+        </table>
+    </details>
+    {% endfor %}
+{% else %}
+    <p>No removed elements.</p>
+{% endif %}
+
+</body>
+</html>
