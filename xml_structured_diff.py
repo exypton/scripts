@@ -1,38 +1,40 @@
 from xmldiff import main, formatting
 from lxml import etree
 import json
-import re
+import io
 
 
-def remove_namespaces(xml_str):
+def parse_without_ns(xml_str):
     """
-    Removes namespaces from XML to avoid XPathEvalError caused by namespace prefixes.
+    Parses XML but strips namespaces as it goes.
+    This prevents xmldiff from generating ns-prefixed XPath.
     """
     parser = etree.XMLParser(remove_blank_text=True)
-    root = etree.fromstring(xml_str.encode("utf-8"), parser)
+    it = etree.iterparse(
+        io.BytesIO(xml_str.encode("utf-8")),
+        events=("start", "end"),
+        remove_blank_text=True,
+        parser=parser
+    )
 
-    for elem in root.getiterator():
-        if not hasattr(elem.tag, 'find'):
-            continue
-        i = elem.tag.find('}')
-        if i > 0:
-            elem.tag = elem.tag[i+1:]  # strip namespace
+    for _, el in it:
+        # Remove element namespace
+        if '}' in el.tag:
+            el.tag = el.tag.split('}', 1)[1]
 
-        # clean namespace declarations
-        attribs = elem.attrib
-        for attr in list(attribs):
-            if attr.startswith("{"):
-                new_attr = attr.split("}", 1)[1]
-                attribs[new_attr] = attribs[attr]
-                del attribs[attr]
+        # Remove attribute namespaces
+        new_attrs = {}
+        for attr, val in el.attrib.items():
+            if '}' in attr:
+                attr = attr.split('}', 1)[1]
+            new_attrs[attr] = val
+        el.attrib.clear()
+        el.attrib.update(new_attrs)
 
-    return etree.tostring(root, encoding="unicode")
+    return it.root
 
 
 class StructuredFormatter(formatting.XMLFormatter):
-    """
-    Converts xmldiff operations into structured change records.
-    """
 
     def __init__(self):
         super().__init__()
@@ -43,15 +45,21 @@ class StructuredFormatter(formatting.XMLFormatter):
             "moved": []
         }
 
+        # Prevent namespace lookup inside xmldiff
+        self.namespaces = {}
+
     def append(self, op, node):
+
         if op == "insert":
-            self.output["added"].append(node)
+            # node is a tuple (path, xml-string, position)
+            path = node[0]
+            self.output["added"].append(path)
 
         elif op == "delete":
-            self.output["deleted"].append(node)
+            path = node[0]
+            self.output["deleted"].append(path)
 
         elif op == "update":
-            # node = (path, old, new)
             path = node[0]
             old_val = node[1]
             new_val = node[2]
@@ -69,23 +77,23 @@ class StructuredFormatter(formatting.XMLFormatter):
 
 
 def structured_xml_diff(before_xml, after_xml):
-    """
-    Performs a namespace-safe structural XML diff.
-    """
 
-    before_clean = remove_namespaces(before_xml)
-    after_clean = remove_namespaces(after_xml)
-
-    before_doc = etree.fromstring(before_clean.encode("utf-8"))
-    after_doc = etree.fromstring(after_clean.encode("utf-8"))
+    before_doc = parse_without_ns(before_xml)
+    after_doc = parse_without_ns(after_xml)
 
     formatter = StructuredFormatter()
 
-    main.diff_trees(
+    # IMPORTANT: disable namespace-dependent algorithms in xmldiff
+    diff = main.diff_trees(
         before_doc,
         after_doc,
         formatter=formatter,
-        diff_options={"F": 0.5, "ratio_mode": "fast"},
+        diff_options={
+            "F": 0.5,
+            "ratio_mode": "fast",
+            "uniqueattrs": [],        # disable namespace-based uniqueness
+            "explicit_namespaces": {},# disable namespace resolution
+        }
     )
 
     return json.loads(formatter.tostring())
