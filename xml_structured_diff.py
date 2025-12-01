@@ -5,16 +5,25 @@ import io
 
 def parse_without_ns(xml_str):
     """
-    Parses XML and strips namespaces during streaming.
-    Fully compatible with lxml.etree.iterparse().
+    Robust namespace-stripping XML parser for NETCONF/YANG data.
+    Ensures the final root element is returned correctly.
     """
+
+    # Streaming parse
     it = etree.iterparse(
         io.BytesIO(xml_str.encode("utf-8")),
         events=("start", "end"),
         remove_blank_text=True
     )
 
-    for _, el in it:
+    root = None
+
+    for event, el in it:
+
+        # Capture root on the first 'start' event
+        if event == "start" and root is None:
+            root = el
+
         # Remove element namespace
         if '}' in el.tag:
             el.tag = el.tag.split('}', 1)[1]
@@ -29,8 +38,7 @@ def parse_without_ns(xml_str):
         el.attrib.clear()
         el.attrib.update(new_attrs)
 
-    # iterparse returns the last element as it.root
-    return it.root
+    return root
 
 class StructuredFormatter(formatting.XMLFormatter):
 
