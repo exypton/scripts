@@ -3,18 +3,15 @@ from lxml import etree
 import json
 import io
 
-
 def parse_without_ns(xml_str):
     """
-    Parses XML but strips namespaces as it goes.
-    This prevents xmldiff from generating ns-prefixed XPath.
+    Parses XML and strips namespaces during streaming.
+    Fully compatible with lxml.etree.iterparse().
     """
-    parser = etree.XMLParser(remove_blank_text=True)
     it = etree.iterparse(
         io.BytesIO(xml_str.encode("utf-8")),
         events=("start", "end"),
-        remove_blank_text=True,
-        parser=parser
+        remove_blank_text=True
     )
 
     for _, el in it:
@@ -28,11 +25,12 @@ def parse_without_ns(xml_str):
             if '}' in attr:
                 attr = attr.split('}', 1)[1]
             new_attrs[attr] = val
+
         el.attrib.clear()
         el.attrib.update(new_attrs)
 
+    # iterparse returns the last element as it.root
     return it.root
-
 
 class StructuredFormatter(formatting.XMLFormatter):
 
