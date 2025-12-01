@@ -1,109 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Side-by-Side Config Diff - {{ inventory_hostname }}</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Configuration Diff Report</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { margin-bottom: 30px; }
+        :root {
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --border-color: #e5e7eb;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --green-text: #16a34a; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+            --red-text: #dc2626; --red-bg: #fef2f2; --red-border: #fecaca;
+            --orange-text: #ea580c; --orange-bg: #fff7ed; --orange-border: #fed7aa;
+        }
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 40px);
+        }
+        .header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9fafb;
+        }
+        .title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+        .stats {
+            display: flex;
+            gap: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 9999px;
+            border: 1px solid;
+            display: flex;
+            align-items: center;
+        }
+        .badge.added { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
+        .badge.removed { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
+        .badge.modified { background: var(--orange-bg); color: var(--orange-text); border-color: var(--orange-border); }
+        
+        .diff-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .pane {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .pane-left { border-right: 1px solid var(--border-color); }
+        
+        .pane-header {
+            position: sticky;
+            top: 0;
+            background: rgba(249, 250, 251, 0.95);
+            backdrop-filter: blur(4px);
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            z-index: 10;
+        }
+        
+        .code-content {
+            padding: 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.875rem;
+        }
+        
+        /* Ensure empty lines have height */
+        .code-content div {
+            min-height: 1.25em;
+        }
 
-        table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
-        th { background: #f0f0f0; padding: 10px; font-size: 16px; }
-        td { vertical-align: top; padding: 10px; white-space: pre-wrap; }
-
-        .before { background-color: #ffecec; }  /* light red */
-        .after  { background-color: #eaffea; }  /* light green */
-        .added  { background-color: #e6ffea; }
-        .deleted { background-color: #ffecec; }
-        .changed { background-color: #fff9e6; } /* light yellow */
-
-        details { margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; }
-        summary { font-weight: bold; cursor: pointer; padding: 10px; background: #f7f7f7; }
-        .path { font-family: monospace; color: #555; }
+        /* Syntax Highlighting overrides for better readability in report */
+        span[style*="color:#00aa00"] { background-color: #dcfce7; padding: 0 2px; border-radius: 2px; }
+        span[style*="color:#cc0000"] { background-color: #fee2e2; padding: 0 2px; border-radius: 2px; }
+        span[style*="color:#ff8800"] { background-color: #ffedd5; padding: 0 2px; border-radius: 2px; }
     </style>
 </head>
-
 <body>
-
-<h1>Side-by-Side Structural Diff — {{ inventory_hostname }}</h1>
-
-<!-- ============================ -->
-<!-- Changed Values (Side-by-side) -->
-<!-- ============================ -->
-<h2>Changed Elements</h2>
-{% if xml_diff.changed %}
-    {% for item in xml_diff.changed %}
-    <details open>
-        <summary>
-            <span class="path">▶ {{ item.path }}</span>
-        </summary>
-
-        <table>
-            <tr>
-                <th>Before</th>
-                <th>After</th>
-            </tr>
-            <tr>
-                <td class="before changed">{{ item.old }}</td>
-                <td class="after changed">{{ item.new }}</td>
-            </tr>
-        </table>
-    </details>
-    {% endfor %}
-{% else %}
-    <p>No changed elements.</p>
-{% endif %}
-
-
-<!-- ============================ -->
-<!-- Added Elements (Side-by-side-like) -->
-<!-- ============================ -->
-<h2>Added Elements</h2>
-{% if xml_diff.added %}
-    {% for item in xml_diff.added %}
-    <details>
-        <summary class="path">▶ {{ item }}</summary>
-        <table>
-            <tr>
-                <th>Before</th>
-                <th>After</th>
-            </tr>
-            <tr>
-                <td class="before deleted">—</td>
-                <td class="after added">{{ item }}</td>
-            </tr>
-        </table>
-    </details>
-    {% endfor %}
-{% else %}
-    <p>No added elements.</p>
-{% endif %}
-
-
-<!-- ============================ -->
-<!-- Deleted Elements -->
-<!-- ============================ -->
-<h2>Deleted Elements</h2>
-{% if xml_diff.deleted %}
-    {% for item in xml_diff.deleted %}
-    <details>
-        <summary class="path">▶ {{ item }}</summary>
-        <table>
-            <tr>
-                <th>Before</th>
-                <th>After</th>
-            </tr>
-            <tr>
-                <td class="before deleted">{{ item }}</td>
-                <td class="after deleted">—</td>
-            </tr>
-        </table>
-    </details>
-    {% endfor %}
-{% else %}
-    <p>No removed elements.</p>
-{% endif %}
-
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1 class="title">Structural Config Diff</h1>
+                <div class="stats">
+                    <span class="badge added">+{{ diff.metadata.added_count }} Added</span>
+                    <span class="badge removed">-{{ diff.metadata.removed_count }} Removed</span>
+                    <span class="badge modified">~{{ diff.metadata.changed_count }} Modified</span>
+                </div>
+            </div>
+            <div class="diff-container">
+                <div class="pane pane-left">
+                    <div class="pane-header">Before Change</div>
+                    <div class="code-content">{{ diff.left | safe }}</div>
+                </div>
+                <div class="pane pane-right">
+                    <div class="pane-header">After Change</div>
+                    <div class="code-content">{{ diff.right | safe }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
