@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Configuration Diff Report</title>
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --border-color: #e5e7eb;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --green-text: #16a34a; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+            --red-text: #dc2626; --red-bg: #fef2f2; --red-border: #fecaca;
+            --orange-text: #ea580c; --orange-bg: #fff7ed; --orange-border: #fed7aa;
+        }
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            flex: 1; /* Take up remaining height */
+        }
+        .header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9fafb;
+            flex-shrink: 0;
+        }
+        .title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+        .stats {
+            display: flex;
+            gap: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 9999px;
+            border: 1px solid;
+            display: flex;
+            align-items: center;
+        }
+        .badge.added { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
+        .badge.removed { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
+        .badge.modified { background: var(--orange-bg); color: var(--orange-text); border-color: var(--orange-border); }
+        
+        /* Unified Scroll Container */
+        .diff-body {
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+            background: #fff;
+        }
+
+        /* Sticky Header Row */
+        .sticky-header-row {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            background: rgba(249, 250, 251, 0.95);
+            backdrop-filter: blur(4px);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .header-col {
+            width: 50%;
+            padding: 8px 16px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+        }
+        
+        .header-col:first-child {
+            border-right: 1px solid var(--border-color);
+        }
+
+        /* Content Layout */
+        .content-row {
+            display: flex;
+            min-height: 0;
+        }
+        
+        .content-col {
+            width: 50%;
+            background: white;
+            /* No overflow here, allowing parent to scroll */
+        }
+        
+        .content-col:first-child {
+            border-right: 1px solid var(--border-color);
+        }
+        
+        .code-block {
+            padding: 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.875rem;
+        }
+        
+        /* Ensure empty lines have height */
+        .code-block div {
+            min-height: 1.25em;
+        }
+        
+        /* Spacer */
+        .spacer {
+            min-height: 1.25em;
+        }
+
+        /* Syntax Highlighting overrides for better readability in report */
+        span[style*="color:#00aa00"] { background-color: #dcfce7; padding: 0 2px; border-radius: 2px; }
+        span[style*="color:#cc0000"] { background-color: #fee2e2; padding: 0 2px; border-radius: 2px; }
+        span[style*="color:#ff8800"] { background-color: #ffedd5; padding: 0 2px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1 class="title">Structural Config Diff</h1>
+                <div class="stats">
+                    <span class="badge added">+{{ diff.metadata.added_count }} Added</span>
+                    <span class="badge removed">-{{ diff.metadata.removed_count }} Removed</span>
+                    <span class="badge modified">~{{ diff.metadata.changed_count }} Modified</span>
+                </div>
+            </div>
+            
+            <div class="diff-body">
+                <div class="sticky-header-row">
+                    <div class="header-col">Before Change</div>
+                    <div class="header-col">After Change</div>
+                </div>
+                <div class="content-row">
+                    <div class="content-col">
+                        <div class="code-block">{{ diff.left | safe }}</div>
+                    </div>
+                    <div class="content-col">
+                        <div class="code-block">{{ diff.right | safe }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
